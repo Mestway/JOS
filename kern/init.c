@@ -46,6 +46,8 @@ i386_init(void)
 	cprintf("x=%d y=%d\n", 3);
 	*/
 	
+	test_backtrace(5);
+	
 	cprintf("\x1b[1,32m123-%d-%c \x1b[0m\n",32,'o');	
 	cprintf("\x1b[1,31m123-%d-%c \x1b[0m\n",32,'o');
 	cprintf("\x1b[1,34m123-%d-%c \x1b[0m\n",32,'o');
@@ -55,9 +57,6 @@ i386_init(void)
 	cprintf("\x1b[42m123-%d-%c \x1b[0m\n",32,'o');	
 	cprintf("\x1b[41m123-%d-%c \x1b[0m\n",32,'o');
 	cprintf("\x1b[44m123-%d-%c \x1b[0m\n",32,'o');
-
-	// Test the stack backtrace function (lab 1 only)
-	test_backtrace(5);
 
 	// Drop into the kernel monitor.
 	while (1)
