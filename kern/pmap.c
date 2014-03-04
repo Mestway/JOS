@@ -430,7 +430,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 // mapped pages.
 //
 // Hint: the TA solution uses pgdir_walk
-static void
+void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
@@ -449,7 +449,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 
 //By Stanley Wang
 
-static void 
+void 
 extend_map(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm) {
 	
 	unsigned ex_pgsize = PGSIZE << 10;

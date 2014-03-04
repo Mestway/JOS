@@ -27,7 +27,6 @@ static struct Command commands[] = {
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "showmappings", "Display a range of address", mon_showmappings },
 	{ "setmapping", "Set a new mapping given va and pa.", mon_setmapping},
-	{ "clearmapping", "Clear a mapping given va", mon_clearmapping},
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -46,41 +45,6 @@ mon_help(int argc, char **argv, struct Trapframe *tf)
 unsigned string2num(char *str, int base);
 int check_num(char c, int base);
 static physaddr_t print_va2pa(pde_t *pgdir, uintptr_t va);
-static void set_va(pte_t *pgdir ,uintptr_t va, physaddr_t pa, int perm);
-
-void
-set_boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
-{
-	// Fill this function in
-	// By Stanley Wang
-	
-	uintptr_t k = va;
-	unsigned i = 0;
-	unsigned j = pa;
-	for(i = 0; i < size / PGSIZE; i ++) {
-		pte_t *pg_entry = pgdir_walk(pgdir, (void *)k, 1);
-		*pg_entry = (j & (~0xfff)) | perm;
-		k += PGSIZE;
-		j += PGSIZE;
-	}
-}
-
-//By Stanley Wang
-void 
-set_extend_map(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm) {
-	
-	unsigned ex_pgsize = PGSIZE << 10;
-	unsigned i = 0; 
-	unsigned j = pa;
-	unsigned k = va;
-	pte_t *pde;
-	for(i = 0; i < size / ex_pgsize; i ++) {
-		pde = &pgdir[PDX(k)];
-		*pde = ((j & (0xffc00000)) | perm | PTE_P | PTE_PS);	
-		k += ex_pgsize;
-		j += ex_pgsize;
-	}
-}
 
 // By Stanley Wang
 int
@@ -115,26 +79,10 @@ mon_showmappings(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
-int mon_clearmapping(int argc, char **argv, struct Trapframe *tf)
-{	
-	unsigned left, right;
-
-	if(argv[1][0] == '0' && argv[1][1] == 'x') {
-		left = string2num(argv[1], 16);
-	} else {
-		left = string2num(argv[1], 10);
-	}
-
-	uint32_t kern_pgdir =(uint32_t) KADDR((physaddr_t)rcr3());
-	set_va((pte_t *)kern_pgdir, (uintptr_t)left, (physaddr_t)0, 0);
-	
-	print_va2pa((pte_t *)kern_pgdir,left);
-	return 0;
-}
-
 int
 mon_setmapping(int argc, char **argv, struct Trapframe *tf)
-{	
+{
+	
 	unsigned left, right;
 
 	if(argv[1][0] == '0' && argv[1][1] == 'x') {
@@ -148,25 +96,17 @@ mon_setmapping(int argc, char **argv, struct Trapframe *tf)
 	} else {
 		right = string2num(argv[2], 10);
 	}
-
-	unsigned perm = 0;
-	if(argv[3] != NULL) {
-		perm = string2num(argv[1],2);
-	}
-
+	
 	uint32_t kern_pgdir =(uint32_t) KADDR((physaddr_t)rcr3());
-	set_va((pte_t *)kern_pgdir, (uintptr_t)left, (physaddr_t)right, PTE_P | perm);
-	print_va2pa((pte_t *)kern_pgdir,left);
-
 	return 0;
 }
 
 static void
 set_va(pte_t *pgdir ,uintptr_t va, physaddr_t pa, int perm) {
 	if(perm & PTE_PS)
-		set_extend_map(pgdir, va, PGSIZE, pa, perm);
+		extend_map(pgdir, va, PGSIZE, pa, perm);
 	else 
-		set_boot_map_region(pgdir, va, PGSIZE, pa, perm);
+		boot_map_region(pgdir, va, PGSIZE, pa, perm);
 }
 
 static physaddr_t
@@ -186,12 +126,13 @@ print_va2pa(pde_t *pgdir, uintptr_t va)
 	
 	p = (pte_t*) ((0xf0000000) | (PTE_ADDR(*pgdir)));
 	if (!(p[PTX(va)] & PTE_P)){
-		cprintf("Page does not exist at address 0x%x\n", va);
+		//cprintf("Page does not exist at address 0x%x\n", va);
 		return ~0;
 	}
 	
-	cprintf("0x%x:0x%x\n",va, PTE_ADDR(p[PTX(va)]) | (va & 0xfff));
-	return PTE_ADDR(p[PTX(va)]);	
+	cprintf("0x%x:0x%x\n",va, PTE_ADDR(p[PTX(va)]));
+	return PTE_ADDR(p[PTX(va)]);
+	
 }
           
 unsigned
@@ -228,9 +169,6 @@ int check_num(char c, int base) {
 				case 'f': return 15;
 			}
 		}
-	} else if(base == 2) {
-		assert(c >= '0' && c <= '1');
-		return c - '0';	
 	}
 	return 0;
 }
