@@ -50,7 +50,7 @@ i386_init(void)
 	
 	cprintf("\x1b[1,32m123-%d-%c \x1b[0m\n",32,'o');	
 	cprintf("\x1b[1,31m123-%d-%c \x1b[0m\n",32,'o');
-	cprintf("\x1b[1,34m123-%d-%c \x1b[0m\n",32,'o');
+	cprintf("\x1b[1,34,41m123-%d-%c \x1b[0m\n",32,'o');
 	cprintf("\x1b[32m123-%d-%c \x1b[0m\n",32,'o');	
 	cprintf("\x1b[31m123-%d-%c \x1b[0m\n",32,'o');
 	cprintf("\x1b[34m123-%d-%c \x1b[0m\n",32,'o');
