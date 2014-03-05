@@ -25,9 +25,10 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
-	{ "showmappings", "Display a range of address", mon_showmappings },
-	{ "setmapping", "Set a new mapping given va and pa.", mon_setmapping},
-	{ "clearmapping", "Clear a mapping given va", mon_clearmapping},
+	{ "showmappings", "Display a range of address, method: setmappings va1 va2", mon_showmappings },
+	{ "setmapping", "Set a new mapping given va and pa, method: setmapping va pa [perm], pa = 'n' will not update physaddr", mon_setmapping},
+	{ "clearmapping", "Clear a mapping given va, method: clearmapping va", mon_clearmapping},
+	{ "dump", "Dump a range of memory", mon_dump},
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -45,8 +46,9 @@ mon_help(int argc, char **argv, struct Trapframe *tf)
 
 unsigned string2num(char *str, int base);
 int check_num(char c, int base);
-static physaddr_t print_va2pa(pde_t *pgdir, uintptr_t va);
+static physaddr_t print_va2pa(pde_t *pgdir, uintptr_t va, bool print);
 static void set_va(pte_t *pgdir ,uintptr_t va, physaddr_t pa, int perm);
+static void print_perm(unsigned perm);
 
 void
 set_boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
@@ -109,7 +111,7 @@ mon_showmappings(int argc, char **argv, struct Trapframe *tf)
 	unsigned size = (right - left) / PGSIZE;
 	for(i = 0; i < size; i ++) {
 		p += PGSIZE;
-		print_va2pa((pde_t *)kern_pgdir, (uintptr_t) p);
+		print_va2pa((pde_t *)kern_pgdir, (uintptr_t) p, true);
 	}
 
 	return 0;
@@ -128,13 +130,51 @@ int mon_clearmapping(int argc, char **argv, struct Trapframe *tf)
 	uint32_t kern_pgdir =(uint32_t) KADDR((physaddr_t)rcr3());
 	set_va((pte_t *)kern_pgdir, (uintptr_t)left, (physaddr_t)0, 0);
 	
-	print_va2pa((pte_t *)kern_pgdir,left);
+	print_va2pa((pte_t *)kern_pgdir,left, true);
 	return 0;
 }
 
 int
 mon_setmapping(int argc, char **argv, struct Trapframe *tf)
 {	
+	unsigned left, right = 0;
+	bool right_exist = true;
+
+	if(argv[1][0] == '0' && argv[1][1] == 'x') {
+		left = string2num(argv[1], 16);
+	} else {
+		left = string2num(argv[1], 10);
+	}
+
+	if(argv[2][0] == '0' && argv[2][1] == 'x') {
+		right = string2num(argv[2], 16);
+	} else if(argv[2][0] == 'n') {
+		right_exist = false;
+	}else {
+		right = string2num(argv[2], 10);
+	}
+
+	unsigned perm = 0;
+	if(argv[3] != NULL) {
+		perm = string2num(argv[3],2);
+	}
+
+	uint32_t kern_pgdir =(uint32_t) KADDR((physaddr_t)rcr3());
+
+	if(right_exist == false) {
+		right = print_va2pa((pte_t *)kern_pgdir, left, false);	
+	}
+
+	set_va((pte_t *)kern_pgdir, (uintptr_t)left, (physaddr_t)right, PTE_P | perm);
+	print_va2pa((pte_t *)kern_pgdir,left, true);
+
+	return 0;
+}
+
+int mon_dump(int argc, char **argv,struct Trapframe *tf) {
+
+	//cprintf("showmappings: %s %s\n", argv[1], argv[2]);
+	
 	unsigned left, right;
 
 	if(argv[1][0] == '0' && argv[1][1] == 'x') {
@@ -148,16 +188,23 @@ mon_setmapping(int argc, char **argv, struct Trapframe *tf)
 	} else {
 		right = string2num(argv[2], 10);
 	}
-
-	unsigned perm = 0;
-	if(argv[3] != NULL) {
-		perm = string2num(argv[1],2);
-	}
-
+	
 	uint32_t kern_pgdir =(uint32_t) KADDR((physaddr_t)rcr3());
-	set_va((pte_t *)kern_pgdir, (uintptr_t)left, (physaddr_t)right, PTE_P | perm);
-	print_va2pa((pte_t *)kern_pgdir,left);
-
+	
+	int i = 0;
+	int p = left;
+	unsigned size = (right - left) / PGSIZE;
+	for(i = 0; i < size; i ++) {
+		physaddr_t pa = print_va2pa((pde_t *)kern_pgdir, (uintptr_t) p, false);
+		if(pa == ~0) cprintf("Page not exist\n");
+		else {
+			int t = 0;
+			for(t = 0; t < PGSIZE; t ++) {
+				cprintf("0x%x ", *(unsigned *)(p));
+			}
+			cprintf("\n");
+		}
+	}
 	return 0;
 }
 
@@ -170,30 +217,47 @@ set_va(pte_t *pgdir ,uintptr_t va, physaddr_t pa, int perm) {
 }
 
 static physaddr_t
-print_va2pa(pde_t *pgdir, uintptr_t va)
+print_va2pa(pde_t *pgdir, uintptr_t va, bool print)
 {
 	pte_t *p;
 
 	pgdir = &pgdir[PDX(va)];
 	if (!(*pgdir & PTE_P)) {
-		cprintf("Page does not exist at address 0x%x\n", va);
+		if(print) cprintf("Page does not exist at address 0x%x\n", va);
 		return ~0;
 	}
 	if((*pgdir) & PTE_PS) {
-		cprintf("0x:%x 0x:%x\n",va, ((0xffc00000) & *pgdir) | (va & 0x3fffff)); 
-		return ~0;
+		if(print) cprintf("0x%x:0x%x ",va, ((0xffc00000) & *pgdir) | (va & 0x3fffff)); 
+		if(print) print_perm(*pgdir);
+		return (0xffc00000 & *pgdir);
 	}
 	
 	p = (pte_t*) ((0xf0000000) | (PTE_ADDR(*pgdir)));
 	if (!(p[PTX(va)] & PTE_P)){
-		cprintf("Page does not exist at address 0x%x\n", va);
+		if(print) cprintf("Page does not exist at address 0x%x\n", va);
 		return ~0;
 	}
 	
-	cprintf("0x%x:0x%x\n",va, PTE_ADDR(p[PTX(va)]) | (va & 0xfff));
+	if(print) cprintf("0x%x:0x%x ",va, PTE_ADDR(p[PTX(va)]) | (va & 0xfff));
+	if(print) print_perm(p[PTX(va)]);
 	return PTE_ADDR(p[PTX(va)]);	
 }
-          
+
+static void print_perm(unsigned perm) {
+	
+	cprintf("[");
+	if(perm & PTE_P) cprintf(" PTE_P");
+	if(perm & PTE_W) cprintf(" PTE_W");
+	if(perm & PTE_U) cprintf(" PTE_U");
+	if(perm & PTE_PWT) cprintf(" PTE_PWT");
+	if(perm & PTE_PCD) cprintf(" PTE_PCD");
+	if(perm & PTE_A) cprintf(" PTE_A");
+	if(perm & PTE_D) cprintf(" PTE_D");
+	if(perm & PTE_PS) cprintf(" PTE_PS");
+	if(perm & PTE_G) cprintf(" PTE_G");
+	cprintf(" ]\n");
+}
+
 unsigned
 string2num(char *str, int base) {
 	unsigned ret = 0;
