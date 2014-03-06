@@ -29,6 +29,7 @@ static struct Command commands[] = {
 	{ "setmapping", "Set a new mapping given va and pa, method: setmapping va pa [perm], pa = 'n' will not update physaddr", mon_setmapping},
 	{ "clearmapping", "Clear a mapping given va, method: clearmapping va", mon_clearmapping},
 	{ "dump", "Dump a range of memory", mon_dump},
+	{ "backtrace", "Back trace", mon_backtrace},
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
