@@ -85,6 +85,7 @@ trap_init(void)
 	extern void H_ALIGN();
 	extern void H_MCHK();
 	extern void H_SIMDERR();
+	extern void H_SYSCALL();
 
 	SETGATE(idt[T_DIVIDE], 0, GD_KT, H_DIVIDE, 0 );
 	SETGATE(idt[T_DEBUG], 0, GD_KT, H_DEBUG, 0);
@@ -104,6 +105,7 @@ trap_init(void)
 	SETGATE(idt[T_ALIGN], 0, GD_KT, H_ALIGN, 0);
 	SETGATE(idt[T_MCHK], 0, GD_KT, H_MCHK, 0);
 	SETGATE(idt[T_SIMDERR], 0, GD_KT, H_SIMDERR, 0);
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, H_SYSCALL, 3);
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -182,6 +184,26 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	if(tf->tf_trapno == T_PGFLT) {
+		page_fault_handler(tf);
+		return;
+	} else if(tf->tf_trapno == T_BRKPT) {
+		monitor(tf);
+		return;
+	} else if(tf->tf_trapno == T_SYSCALL) {
+	
+		int32_t ret_val = 0;
+		ret_val = syscall(tf->tf_regs.reg_eax, 
+						tf->tf_regs.reg_edx, 
+						tf->tf_regs.reg_ecx, 
+						tf->tf_regs.reg_ebx, 
+						tf->tf_regs.reg_edi, 
+						tf->tf_regs.reg_esi);
+		
+		tf->tf_regs.reg_eax = ret_val;
+		return;
+	}
+
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -243,6 +265,8 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	if((tf->tf_cs & 3) == 0)
+		panic("kernel mode page faults");
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
