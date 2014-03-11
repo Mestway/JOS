@@ -38,7 +38,7 @@
 	.align 2;							\
 	name:								\
 	pushl $0;							\
-	pushl $(num);							\
+	pushl $(num);						\
 	jmp _alltraps
 
 .text
@@ -46,10 +46,37 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
-
-
+TRAPHANDLER_NOEC(H_DIVIDE, T_DIVIDE);
+TRAPHANDLER_NOEC(H_DEBUG, T_DEBUG)
+TRAPHANDLER_NOEC(H_NMI, T_NMI)
+TRAPHANDLER_NOEC(H_BRKPT, T_BRKPT)
+TRAPHANDLER_NOEC(H_OFLOW, T_OFLOW)
+TRAPHANDLER_NOEC(H_BOUND, T_BOUND)
+TRAPHANDLER_NOEC(H_ILLOP, T_ILLOP)
+TRAPHANDLER_NOEC(H_DEVICE, T_DEVICE)
+TRAPHANDLER(H_DBLFLT, T_DBLFLT)
+TRAPHANDLER(H_TSS, T_TSS)
+TRAPHANDLER(H_SEGNP, T_SEGNP)
+TRAPHANDLER(H_STACK, T_STACK)
+TRAPHANDLER(H_GPFLT, T_GPFLT)
+TRAPHANDLER(H_PGFLT, T_PGFLT)
+TRAPHANDLER_NOEC(H_FPERR, T_FPERR)
+TRAPHANDLER(H_ALIGN, T_ALIGN)
+TRAPHANDLER_NOEC(H_MCHK, T_MCHK)
+TRAPHANDLER_NOEC(H_SIMDERR, T_SIMDERR)
 
 /*
  * Lab 3: Your code here for _alltraps
  */
 
+_alltraps:
+	pushl %ds
+	pushl %es
+
+	pushal
+
+	movl $GD_KD, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	pushl %esp
+	call trap
