@@ -16,32 +16,40 @@
  *
  * You shouldn't call a TRAPHANDLER function from C, but you may
  * need to _declare_ one in C (for instance, to get a function pointer
- * during IDT setup).  You can declare the function with
- *   void NAME();
+ * during IDT setup). You can declare the function with
+ * void NAME();
  * where NAME is the argument passed to TRAPHANDLER.
  */
-#define TRAPHANDLER(name, num)						\
-	.globl name;		/* define global symbol for 'name' */	\
-	.type name, @function;	/* symbol type is function */		\
-	.align 2;		/* align function definition */		\
-	name:			/* function starts here */		\
-	pushl $(num);							\
-	jmp _alltraps
+#define TRAPHANDLER(name, num) \
+.text;	\
+.globl name;	/* define global symbol for 'name' */	\
+.type name, @function;	/* symbol type is function */	\
+.align 2;	/* align function definition */	\
+name:	/* function starts here */	\
+pushl $(num);	\
+jmp _alltraps;	\
+.data;		\
+.long name
 
 /* Use TRAPHANDLER_NOEC for traps where the CPU doesn't push an error code.
  * It pushes a 0 in place of the error code, so the trap frame has the same
  * format in either case.
  */
-#define TRAPHANDLER_NOEC(name, num)					\
-	.globl name;							\
-	.type name, @function;						\
-	.align 2;							\
-	name:								\
-	pushl $0;							\
-	pushl $(num);						\
-	jmp _alltraps
+#define TRAPHANDLER_NOEC(name, num) \
+.text;		\
+.globl name;	\
+.type name, @function;	\
+.align 2;	\
+name:		\
+pushl $0;	\
+pushl $(num);	\
+jmp _alltraps;	\
+.data;		\
+.long name
 
-.text
+.data;
+.global idt_list;
+idt_list:
 
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
@@ -55,11 +63,13 @@ TRAPHANDLER_NOEC(H_BOUND, T_BOUND)
 TRAPHANDLER_NOEC(H_ILLOP, T_ILLOP)
 TRAPHANDLER_NOEC(H_DEVICE, T_DEVICE)
 TRAPHANDLER(H_DBLFLT, T_DBLFLT)
+TRAPHANDLER(H_RES, 9)
 TRAPHANDLER(H_TSS, T_TSS)
 TRAPHANDLER(H_SEGNP, T_SEGNP)
 TRAPHANDLER(H_STACK, T_STACK)
 TRAPHANDLER(H_GPFLT, T_GPFLT)
 TRAPHANDLER(H_PGFLT, T_PGFLT)
+TRAPHANDLER(H_RES2, 15)
 TRAPHANDLER_NOEC(H_FPERR, T_FPERR)
 TRAPHANDLER(H_ALIGN, T_ALIGN)
 TRAPHANDLER_NOEC(H_MCHK, T_MCHK)
@@ -70,13 +80,13 @@ TRAPHANDLER_NOEC(H_SYSCALL, T_SYSCALL)
  */
 
 _alltraps:
-	pushl %ds
-	pushl %es
+pushl %ds
+pushl %es
 
-	pushal
+pushal
 
-	movl $GD_KD, %eax
-	movw %ax, %ds
-	movw %ax, %es
-	pushl %esp
-	call trap
+movl $GD_KD, %eax
+movw %ax, %ds
+movw %ax, %es
+pushl %esp
+call trap
