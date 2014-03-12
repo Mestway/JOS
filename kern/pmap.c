@@ -65,6 +65,7 @@ static void check_kern_pgdir(void);
 static physaddr_t check_va2pa(pde_t *pgdir, uintptr_t va);
 static void check_page(void);
 static void check_page_installed_pgdir(void);
+static void extend_map(pde_t *, uintptr_t, size_t, physaddr_t, int);
 
 // This simple physical memory allocator is used only while JOS is setting
 // up its virtual memory system.  page_alloc() is the real allocator.
@@ -129,6 +130,12 @@ mem_init(void)
 {
 	uint32_t cr0;
 	size_t n;
+
+	uint32_t cr4;
+	cr4 = rcr4();
+	cr4 |= 0x10;
+	cprintf("%x\n",cr4);
+	lcr4(cr4);
 
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
@@ -238,11 +245,18 @@ mem_init(void)
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
 
-	boot_map_region(kern_pgdir,
+	/*boot_map_region(kern_pgdir,
 					KERNBASE,
 					(unsigned)(~KERNBASE + 1),
 					0,
 					PTE_P | PTE_W);
+	*/
+
+	extend_map(kern_pgdir, 
+				KERNBASE, 
+				(unsigned)(~KERNBASE + 1), 
+				0, 
+				PTE_P | PTE_W);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -255,9 +269,9 @@ mem_init(void)
 	// If the machine reboots at this point, you've probably set up your
 	// kern_pgdir wrong.
 	lcr3(PADDR(kern_pgdir));
+	
 
 	check_page_free_list(0);
-
 	// entry.S set the really important flags in cr0 (including enabling
 	// paging).  Here we configure the rest of the flags that we care about.
 	cr0 = rcr0();
@@ -438,7 +452,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 // mapped pages.
 //
 // Hint: the TA solution uses pgdir_walk
-static void
+void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
@@ -453,8 +467,26 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 		k += PGSIZE;
 		j += PGSIZE;
 	}
-
 }
+
+//By Stanley Wang
+
+void 
+extend_map(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm) {
+	
+	unsigned ex_pgsize = PGSIZE << 10;
+	unsigned i = 0; 
+	unsigned j = pa;
+	unsigned k = va;
+	pte_t *pde;
+	for(i = 0; i < size / ex_pgsize; i ++) {
+		pde = &pgdir[PDX(k)];
+		*pde = ((j & (0xffc00000)) | perm | PTE_P | PTE_PS);	
+		k += ex_pgsize;
+		j += ex_pgsize;
+	}
+}
+
 
 //
 // Map the physical page 'pp' at virtual address 'va'.
@@ -818,7 +850,10 @@ check_kern_pgdir(void)
 	// check phys mem
 	for (i = 0; i < npages * PGSIZE; i += PGSIZE)
 	{	
-		//cprintf("%d %d\n", check_va2pa(pgdir,KERNBASE + i),i);
+		if(check_va2pa(pgdir, KERNBASE + i) != i) {
+			cprintf("0x%x 0x%x\n", check_va2pa(pgdir,KERNBASE + i),i);
+			cprintf("pgdir: 0x%x\n", kern_pgdir[PDX(KERNBASE + i)]);
+		}
 		assert(check_va2pa(pgdir, KERNBASE + i) == i);
 	}
 	// check kernel stack
@@ -860,6 +895,10 @@ check_va2pa(pde_t *pgdir, uintptr_t va)
 	pgdir = &pgdir[PDX(va)];
 	if (!(*pgdir & PTE_P))
 		return ~0;
+	if((*pgdir) & PTE_PS) {
+		return ((0xffc00000) & *pgdir) | (va & 0x3fffff); 
+	}
+	
 	p = (pte_t*) KADDR(PTE_ADDR(*pgdir));
 	if (!(p[PTX(va)] & PTE_P))
 		return ~0;

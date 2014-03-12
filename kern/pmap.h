@@ -61,7 +61,10 @@ void	page_remove(pde_t *pgdir, void *va);
 struct PageInfo *page_lookup(pde_t *pgdir, void *va, pte_t **pte_store);
 void	page_decref(struct PageInfo *pp);
 
-void	tlb_invalidate(pde_t *pgdir, void *va);
+void	tlb_invalidate(pde_t *pgdir, void *va); 
+//void boot_map_region(pde_t *pgdir, uintptr_t, size_t, physaddr_t, int);
+//void extend_map(pde_t *, uintptr_t, size_t, physaddr_t, int);
+
 
 int	user_mem_check(struct Env *env, const void *va, size_t len, int perm);
 void	user_mem_assert(struct Env *env, const void *va, size_t len, int perm);
