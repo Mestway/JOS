@@ -46,7 +46,6 @@ i386_init(void)
 	// Lab 2 memory management initialization functions
 	mem_init();
 
-<<<<<<< HEAD
 	// Lab 3 user environment initialization functions
 	env_init();
 	trap_init();
@@ -61,9 +60,6 @@ i386_init(void)
 
 	// We only have one user environment for now, so just run it.
 	env_run(&envs[0]);
-
-=======
->>>>>>> lab2-challenge
 	/*
 	 * int x = 1, y = 3, z = 4;
 	cprintf("x %d, y %x, z %d\n", x, y, z);

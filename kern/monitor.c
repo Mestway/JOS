@@ -10,11 +10,8 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
-<<<<<<< HEAD
 #include <kern/trap.h>
-=======
 #include <kern/pmap.h>
->>>>>>> lab2-challenge
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -34,6 +31,8 @@ static struct Command commands[] = {
 	{ "clearmapping", "Clear a mapping given va, method: clearmapping va", mon_clearmapping},
 	{ "dump", "Dump a range of memory", mon_dump},
 	{ "backtrace", "Back trace", mon_backtrace},
+	{ "continue", "Continue from a breakpoint", mon_continue},
+	{ "si", "step an instruction", mon_si},
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -54,7 +53,37 @@ int check_num(char c, int base);
 static physaddr_t print_va2pa(pde_t *pgdir, uintptr_t va, bool print);
 static void set_va(pte_t *pgdir ,uintptr_t va, physaddr_t pa, int perm);
 static void print_perm(unsigned perm);
+extern void env_run(struct Env *);
 
+// continue
+int mon_continue(int argc, char **argv,struct Trapframe* tf)
+{
+	if(tf == NULL || (tf -> tf_trapno != T_BRKPT && tf->tf_trapno != T_DEBUG) ) {
+		cprintf("You are not in a break point, nothing to continue.\n");
+		return 0;
+	}
+	cprintf("recover now!\n");
+
+	extern struct Env *curenv;
+	tf->tf_eflags &= ~FL_TF;
+	env_run(curenv);
+
+	return 0;
+}
+
+int mon_si(int argc, char **argv, struct Trapframe* tf)
+{
+	if(tf == NULL || (tf -> tf_trapno != T_BRKPT && tf->tf_trapno != T_DEBUG) ) {
+		cprintf("You are not in a break point, nothing to continue.\n");
+		return 0;
+	}
+	cprintf("go one step\n");
+	tf->tf_eflags |= FL_TF;
+	extern struct Env *curenv;
+	env_run(curenv);
+
+	return 0;
+}
 void
 set_boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {

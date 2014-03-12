@@ -159,6 +159,8 @@ trap_dispatch(struct Trapframe *tf)
 	} else if(tf->tf_trapno == T_BRKPT) {
 		monitor(tf);
 		return;
+	} else if(tf->tf_trapno == T_DEBUG) {
+		monitor(tf);
 	} else if(tf->tf_trapno == T_SYSCALL) {
 	
 		int32_t ret_val = 0;
