@@ -17,7 +17,22 @@
 
 static void boot_aps(void);
 
+/*<<<<<<< HEAD
+=======
+// Test the stack backtrace function (lab 1 only)
+void
+test_backtrace(int x)
+{
+	cprintf("entering test_backtrace %d\n", x);
 
+	if (x > 0)
+		test_backtrace(x-1);
+	else
+		mon_backtrace(0, 0, 0);
+	cprintf("leaving test_backtrace %d\n", x);
+}
+>>>>>>> lab1
+*/
 void
 i386_init(void)
 {
@@ -59,6 +74,7 @@ i386_init(void)
 	ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
 	// Touch all you want.
+<<<<<<< HEAD
 	ENV_CREATE(user_primes, ENV_TYPE_USER);
 #endif // TEST*
 
@@ -96,6 +112,40 @@ boot_aps(void)
 		while(c->cpu_status != CPU_STARTED)
 			;
 	}
+=======
+	ENV_CREATE(user_divzero, ENV_TYPE_USER);
+#endif // TEST*
+
+	// We only have one user environment for now, so just run it.
+	env_run(&envs[0]);
+
+	/*
+	 * int x = 1, y = 3, z = 4;
+	cprintf("x %d, y %x, z %d\n", x, y, z);
+
+	unsigned int i = 0x00646c72;
+	cprintf("H%x Wo%s\n",57616, &i);
+
+	cprintf("x=%d y=%d\n", 3);
+	*/
+	
+	/*cprintf("\x1b[1,32m123-%d-%c \x1b[0m\n",32,'o');	
+	cprintf("\x1b[1,31m123-%d-%c \x1b[0m\n",32,'o');
+	cprintf("\x1b[1,34m123-%d-%c \x1b[0m\n",32,'o');
+	cprintf("\x1b[32m123-%d-%c \x1b[0m\n",32,'o');	
+	cprintf("\x1b[31m123-%d-%c \x1b[0m\n",32,'o');
+	cprintf("\x1b[34m123-%d-%c \x1b[0m\n",32,'o');
+	cprintf("\x1b[42m123-%d-%c \x1b[0m\n",32,'o');	
+	cprintf("\x1b[41m123-%d-%c \x1b[0m\n",32,'o');
+	cprintf("\x1b[44m123-%d-%c \x1b[0m\n",32,'o');
+	*/
+	// Test the stack backtrace function (lab 1 only)
+	// test_backtrace(5);
+
+	// Drop into the kernel monitor.
+	while (1)
+		monitor(NULL);
+>>>>>>> lab3
 }
 
 // Setup code for APs
