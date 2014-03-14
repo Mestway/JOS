@@ -240,16 +240,15 @@ mem_init(void)
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
 	// Initialize the SMP-related parts of the memory map
 	mem_init_mp();
-=======
+
 	boot_map_region(kern_pgdir,
 					KERNBASE,
 					(unsigned)(~KERNBASE + 1),
 					0,
 					PTE_P | PTE_W);
->>>>>>> lab3
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -298,6 +297,17 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
+	
+	int i = 0;
+	for(i = 0; i < NCPU; i ++) {
+		uintptr_t kstacktop = KSTACKTOP - i * (KSTKSIZE + KSTKGAP);
+		boot_map_region(kern_pgdir, 
+						kstacktop - KSTKSIZE,
+						KSTKSIZE,
+						PADDR(percpu_kstacks[i]),
+						PTE_W);
+	}
+	
 
 }
 
@@ -342,6 +352,8 @@ page_init(void)
 	size_t i;
 	for (i = 1; i < npages; i++) {
 		if(i < npages_basemem || i >= PADDR(boot_alloc(0)) / PGSIZE) {
+			if(page2pa(&pages[i]) == MPENTRY_PADDR)
+				continue;
 			pages[i].pp_ref = 0;
 			pages[i].pp_link = page_free_list;
 			page_free_list = &pages[i];
@@ -650,7 +662,20 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+
+	boot_map_region(kern_pgdir, 
+					base, 
+					ROUNDUP(size,PGSIZE),
+					pa,
+					PTE_PCD | PTE_PWT | PTE_W);	
+
+	void *result = (void *) base;
+	base = base + ROUNDUP(size, PGSIZE);
+	if(base > MMIOBASE + (1 << 20))
+		panic("not enough at MMIOBASE");
+
+	return result;
+	//panic("mmio_map_region not implemented");
 }
 
 static uintptr_t user_mem_check_addr;
@@ -891,7 +916,7 @@ check_kern_pgdir(void)
 	// check phys mem
 	for (i = 0; i < npages * PGSIZE; i += PGSIZE)
 	{	
-		//cprintf("%d %d\n", check_va2pa(pgdir,KERNBASE + i),i);
+		//cprintf("Bugs:%d %d\n", check_va2pa(pgdir,KERNBASE + i),i);
 		assert(check_va2pa(pgdir, KERNBASE + i) == i);
 	}
 	// check kernel stack
