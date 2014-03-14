@@ -29,6 +29,29 @@ sched_yield(void)
 	// below to halt the cpu.
 
 	// LAB 4: Your code here.
+	// By Stanley Wang
+	
+	int i = curenv->env_id + 1;
+	bool findone = false;
+	for(; i <= NENV; i ++) {
+		if(envs[i].env_status == ENV_RUNNABLE) {
+			findone = true;
+			env_run(&envs[i]);
+		}
+	}
+
+	if(findone == false){
+		for(i = 0; i <= NENV; i ++) {
+			if(envs[i].env_status == ENV_RUNNABLE) {
+				findone = true;
+				env_run(&envs[i]);
+			}
+		}
+	}
+
+	if(findone == false && curenv->env_status == ENV_RUNNING) {
+		env_run(curenv);
+	}
 
 	// sched_halt never returns
 	sched_halt();
