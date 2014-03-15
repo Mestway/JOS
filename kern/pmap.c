@@ -239,17 +239,15 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-
-//<<<<<<< HEAD
-	// Initialize the SMP-related parts of the memory map
-	mem_init_mp();
-
 	boot_map_region(kern_pgdir,
 					KERNBASE,
 					(unsigned)(~KERNBASE + 1),
 					0,
 					PTE_P | PTE_W);
 
+	// Initialize the SMP-related parts of the memory map
+	mem_init_mp();
+	
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
 
@@ -305,7 +303,7 @@ mem_init_mp(void)
 						kstacktop - KSTKSIZE,
 						KSTKSIZE,
 						PADDR(percpu_kstacks[i]),
-						PTE_W);
+						PTE_W | PTE_P);
 	}
 	
 
@@ -350,9 +348,10 @@ page_init(void)
 	
 	page_free_list = NULL;
 	size_t i;
+	size_t k = MPENTRY_PADDR / PGSIZE;
 	for (i = 1; i < npages; i++) {
 		if(i < npages_basemem || i >= PADDR(boot_alloc(0)) / PGSIZE) {
-			if(page2pa(&pages[i]) == MPENTRY_PADDR)
+			if(i == k)
 				continue;
 			pages[i].pp_ref = 0;
 			pages[i].pp_link = page_free_list;
@@ -663,14 +662,17 @@ mmio_map_region(physaddr_t pa, size_t size)
 	//
 	// Your code here:
 
+	uintptr_t ex_size = ROUNDUP(pa + size, PGSIZE) - ROUNDDOWN(pa, PGSIZE);
+	pa = ROUNDDOWN(pa, PGSIZE);
+
 	boot_map_region(kern_pgdir, 
 					base, 
-					ROUNDUP(size,PGSIZE),
+					ex_size,
 					pa,
 					PTE_PCD | PTE_PWT | PTE_W);	
 
 	void *result = (void *) base;
-	base = base + ROUNDUP(size, PGSIZE);
+	base = base + ex_size;
 	if(base > MMIOBASE + (1 << 20))
 		panic("not enough at MMIOBASE");
 

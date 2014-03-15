@@ -31,7 +31,11 @@ sched_yield(void)
 	// LAB 4: Your code here.
 	// By Stanley Wang
 	
-	int i = curenv->env_id + 1;
+	int i;
+	if(curenv != NULL) 
+		i = ENVX(curenv->env_id);
+	else i = -1;
+
 	bool findone = false;
 	for(; i <= NENV; i ++) {
 		if(envs[i].env_status == ENV_RUNNABLE) {
@@ -49,7 +53,7 @@ sched_yield(void)
 		}
 	}
 
-	if(findone == false && curenv->env_status == ENV_RUNNING) {
+	if(curenv != NULL && curenv->env_status == ENV_RUNNING) {
 		env_run(curenv);
 	}
 
@@ -90,6 +94,7 @@ sched_halt(void)
 	// Release the big kernel lock as if we were "leaving" the kernel
 	unlock_kernel();
 
+	//cprintf("ESP0 REPORT: %x, %x", thiscpu->cpu_ts.ts_esp0, pgdir_walk(kern_pgdir, (void *)(thiscpu->cpu_ts.ts_esp0), 0));
 	// Reset stack pointer, enable interrupts and then halt.
 	asm volatile (
 		"movl $0, %%ebp\n"
