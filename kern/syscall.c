@@ -350,7 +350,42 @@ static int
 sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_try_send not implemented");
+	struct Env *dst_env;
+	if(envid2env(envid, &dst_env, 0) < 0)
+		return -E_BAD_ENV;
+
+	if(dst_env->env_ipc_recving == 0 || dst_env->env_ipc_from != 0)
+		return -E_IPC_NOT_RECV;
+
+	if((unsigned)srcva < UTOP){
+		if(srcva !=  (void *)ROUNDDOWN(srcva, PGSIZE))
+			return -E_INVAL;
+		if((perm & (PTE_U | PTE_P)) == 0)
+			return -E_INVAL;	 
+		if(perm & ~(PTE_U | PTE_P | PTE_AVAIL | PTE_W))
+			return -E_INVAL;
+		
+		struct PageInfo *pp;
+		pte_t *pte;
+		pp = page_lookup(curenv->env_pgdir, srcva, &pte);
+		if(pp == NULL) return -E_INVAL;
+		if((*pte & PTE_P) == 0 || ((perm & PTE_W) && !(*pte & PTE_W))) return -E_INVAL;	
+	}
+
+	dst_env->env_ipc_recving = 0;
+	dst_env->env_ipc_from = curenv->env_id;
+	dst_env->env_ipc_value = value;
+	dst_env->env_ipc_perm = 0;
+	if((unsigned)srcva < UTOP && (dst_env->env_ipc_dstva != NULL)) {
+		dst_env->env_ipc_perm = perm;
+		int r;
+		if((r = sys_page_alloc(envid, dst_env->env_ipc_dstva, perm)) < 0) return r;
+		if((r = sys_page_map(curenv->env_id, srcva, envid, dst_env->env_ipc_dstva, perm)) < 0) return r;
+	}
+	dst_env->env_status = ENV_RUNNABLE;
+
+	return 0;
+	//panic("sys_ipc_try_send not implemented");
 }
 
 // Block until a value is ready.  Record that you want to receive
@@ -368,7 +403,20 @@ static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_recv not implemented");
+	if(dstva < (void *)UTOP) {
+		if(dstva != (void *)ROUNDDOWN(dstva, PGSIZE))
+			return -E_INVAL;
+		curenv->env_ipc_dstva = dstva;
+	} else curenv->env_ipc_dstva = NULL;
+		
+	curenv->env_ipc_recving = 1;
+	curenv->env_ipc_value = 0;
+	curenv->env_ipc_from = 0;
+	curenv->env_ipc_perm = 0;
+	curenv->env_status = ENV_NOT_RUNNABLE;
+	curenv->env_tf.tf_regs.reg_eax = 0;
+	sys_yield();
+	//panic("sys_ipc_recv not implemented");
 	return 0;
 }
 
@@ -406,6 +454,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		sys_yield();
 	} else if(syscallno == SYS_env_set_pgfault_upcall) {
 		ret_val = sys_env_set_pgfault_upcall(a1, (void *)a2);
+	} else if(syscallno == SYS_ipc_recv){
+		ret_val = sys_ipc_recv((void *)a1);
+	} else if(syscallno == SYS_ipc_try_send) {
+		ret_val = sys_ipc_try_send(a1, a2, (void *)a3, a4);
 	}
 	else {
 		ret_val = -E_INVAL;
