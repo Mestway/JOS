@@ -1,6 +1,7 @@
 #include <inc/mmu.h>
 #include <inc/x86.h>
 #include <inc/assert.h>
+#include <inc/string.h>
 
 #include <kern/pmap.h>
 #include <kern/trap.h>
@@ -114,6 +115,20 @@ trap_init(void)
 	SETGATE(idt[T_SIMDERR], 0, GD_KT, H_SIMDERR, 0);
 	SETGATE(idt[T_SYSCALL], 0, GD_KT, H_SYSCALL, 3);
 
+	extern void H_IRQ0();
+	extern void H_IRQ1();
+	extern void H_IRQ4();
+	extern void H_IRQ7();
+	extern void H_IRQ14();
+	extern void H_IRQ19();
+
+	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, H_IRQ0, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_KBD], 0, GD_KT, H_IRQ1, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_SERIAL], 0, GD_KT, H_IRQ4, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_SPURIOUS], 0, GD_KT, H_IRQ7, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_IDE], 0, GD_KT, H_IRQ14, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_ERROR], 0, GD_KT, H_IRQ19, 0);
+
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -218,11 +233,7 @@ trap_dispatch(struct Trapframe *tf)
 		print_trapframe(tf);
 		page_fault_handler(tf);
 		return;
-	} 
-	/*else if(tf->tf_trapno == T_GPFLT) {
-		print_trapframe(tf);	
-		return;
-	}*/ 
+	}  
 	else if(tf->tf_trapno == T_BRKPT) {
 		monitor(tf);
 		return;
@@ -240,7 +251,6 @@ trap_dispatch(struct Trapframe *tf)
 		return;
 	}
 
-
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
 	// IRQ line or other reasons. We don't care.
@@ -253,6 +263,11 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+	if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+		lapic_eoi();
+		sched_yield();
+		return;
+	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -372,7 +387,32 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	// By Stanley Wang
 
+	if(curenv->env_pgfault_upcall != NULL) {
+		struct UTrapframe utf;
+		utf.utf_esp = tf->tf_esp;
+		utf.utf_eflags = tf->tf_eflags;
+		utf.utf_eip = tf->tf_eip;
+		memcpy(&(utf.utf_regs),&(tf->tf_regs), sizeof(struct PushRegs));
+		utf.utf_err = tf->tf_err;
+		utf.utf_fault_va = fault_va;
+
+		struct UTrapframe *dst_utf;
+		if(tf->tf_esp >= UXSTACKTOP - PGSIZE && tf->tf_esp < UXSTACKTOP) {
+			dst_utf =(struct UTrapframe *) (tf->tf_esp - sizeof(struct UTrapframe) - 4);
+		} else {
+			dst_utf =(struct UTrapframe *) (UXSTACKTOP - sizeof(struct UTrapframe));
+		}
+
+		user_mem_assert(curenv, dst_utf, sizeof(struct UTrapframe), PTE_W);
+
+		memcpy(dst_utf, &utf, sizeof(struct UTrapframe));	
+		curenv->env_tf.tf_eip = (uint32_t)curenv->env_pgfault_upcall;
+		curenv->env_tf.tf_esp = (uint32_t)dst_utf;
+		env_run(curenv);	
+	}
+	
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);
