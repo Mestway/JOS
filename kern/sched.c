@@ -29,6 +29,33 @@ sched_yield(void)
 	// below to halt the cpu.
 
 	// LAB 4: Your code here.
+	// By Stanley Wang
+	
+	int i;
+	if(curenv != NULL) 
+		i = ENVX(curenv->env_id);
+	else i = -1;
+
+	bool findone = false;
+	for(; i <= NENV; i ++) {
+		if(envs[i].env_status == ENV_RUNNABLE) {
+			findone = true;
+			env_run(&envs[i]);
+		}
+	}
+
+	if(findone == false){
+		for(i = 0; i <= NENV; i ++) {
+			if(envs[i].env_status == ENV_RUNNABLE) {
+				findone = true;
+				env_run(&envs[i]);
+			}
+		}
+	}
+
+	if(curenv != NULL && curenv->env_status == ENV_RUNNING) {
+		env_run(curenv);
+	}
 
 	// sched_halt never returns
 	sched_halt();
@@ -68,6 +95,7 @@ sched_halt(void)
 	// Release the big kernel lock as if we were "leaving" the kernel
 	unlock_kernel();
 
+	//cprintf("ESP0 REPORT: %x, %x", thiscpu->cpu_ts.ts_esp0, pgdir_walk(kern_pgdir, (void *)(thiscpu->cpu_ts.ts_esp0), 0));
 	// Reset stack pointer, enable interrupts and then halt.
 	asm volatile (
 		"movl $0, %%ebp\n"

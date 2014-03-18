@@ -18,6 +18,10 @@
  * so that -E_NO_MEM and E_NO_MEM are equivalent.
  */
 
+//By Stanley Wang
+//The color of the output
+unsigned int console_color = 0;
+
 static const char * const error_string[MAXERROR] =
 {
 	[E_UNSPECIFIED]	= "unspecified error",
@@ -51,11 +55,11 @@ printnum(void (*putch)(int, void*), void *putdat,
 	} else {
 		// print any needed pad characters before first digit
 		while (--width > 0)
-			putch(padc, putdat);
+			putch(padc | console_color, putdat);
 	}
 
 	// then print this (the least significant) digit
-	putch("0123456789abcdef"[num % base], putdat);
+	putch("0123456789abcdef"[num % base] | console_color, putdat);
 }
 
 // Get an unsigned int of various possible sizes from a varargs list,
@@ -85,6 +89,8 @@ getint(va_list *ap, int lflag)
 }
 
 
+unsigned switch_color(int num, char c);
+
 // Main function to format and print a string.
 void printfmt(void (*putch)(int, void*), void *putdat, const char *fmt, ...);
 
@@ -97,10 +103,71 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 	int base, lflag, width, precision, altflag;
 	char padc;
 
+
+	// By Stanley Wang
+	int text_color = 0;
+	int foreground_color = 0;
+	int background_color = 0;
+
 	while (1) {
 		while ((ch = *(unsigned char *) fmt++) != '%') {
+				
 			if (ch == '\0')
 				return;
+			
+			/*By Stanley Wang*/
+			if(ch == '\x1b') {
+				
+				//putch(64,putdat);
+				int count_val = 0;
+
+				while((ch = *(unsigned char *) fmt ++)) {
+					
+					switch(ch) {
+						
+					case '\x5b' : break;
+					case '0':
+					case '1':
+					case '2':
+					case '3':
+					case '4':
+					case '5':
+					case '6':
+					case '7':
+					case '8':
+					case '9':
+						count_val = count_val * 10 + ch - '0';
+						break;
+					case ',':
+					case 'm':
+						if(count_val >= 30 && count_val <= 37)
+							foreground_color = count_val;
+						else if(count_val >= 1 && count_val <= 8)
+							text_color = count_val;
+						else if(count_val >= 40 && count_val <= 48)
+							background_color = count_val;
+						else if(count_val == 0) {
+							foreground_color = 0;
+							text_color = 0;
+							background_color = 0;
+							
+						}
+						count_val = 0;
+						break;
+					}
+					if(ch == 'm')
+						break;
+				}
+	
+				unsigned fore = switch_color(foreground_color, 'f');
+				unsigned back = switch_color(background_color, 'b');
+				fore = fore | (switch_color(text_color, 't') << 3);
+				unsigned w_color = (back << 4) | fore;
+				console_color = w_color << 8;
+				continue;
+			}
+
+			ch = (ch & 0xff) | console_color;
 			putch(ch, putdat);
 		}
 
@@ -166,7 +233,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// character
 		case 'c':
-			putch(va_arg(ap, int), putdat);
+			putch(va_arg(ap, int) | console_color, putdat);
 			break;
 
 		// error message
@@ -186,21 +253,21 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 				p = "(null)";
 			if (width > 0 && padc != '-')
 				for (width -= strnlen(p, precision); width > 0; width--)
-					putch(padc, putdat);
+					putch(padc | console_color, putdat);
 			for (; (ch = *p++) != '\0' && (precision < 0 || --precision >= 0); width--)
 				if (altflag && (ch < ' ' || ch > '~'))
-					putch('?', putdat);
+					putch('?' | console_color, putdat);
 				else
-					putch(ch, putdat);
+					putch(ch | console_color, putdat);
 			for (; width > 0; width--)
-				putch(' ', putdat);
+				putch(' ' | console_color, putdat);
 			break;
 
 		// (signed) decimal
 		case 'd':
 			num = getint(&ap, lflag);
 			if ((long long) num < 0) {
-				putch('-', putdat);
+				putch('-' | console_color, putdat);
 				num = -(long long) num;
 			}
 			base = 10;
@@ -215,9 +282,13 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		// (unsigned) octal
 		case 'o':
 			// Replace this with your code.
-			putch('X', putdat);
-			putch('X', putdat);
-			putch('X', putdat);
+			// By Stanley Wang 
+			//putch('X', putdat);
+			//putch('X', putdat);
+			//putch('X', putdat);
+			num = getuint(&ap, lflag);
+			base = 8;
+			goto number;
 			break;
 
 		// pointer
@@ -250,6 +321,29 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			break;
 		}
 	}
+}
+
+//By Stanley Wang
+//num--color number
+//c -- 'b' for background, 'f' for foreground
+unsigned int switch_color(int num, char c) {
+	
+	if(c == 'b') num = num - 40;	
+	if(c == 'f') num = num - 30;
+	if(c == 't') {
+		if(num == 1)
+			return 1;
+	}
+
+	int ret_val = 0;
+
+	switch(num) {
+		case 1: ret_val = 4;break;//R
+		case 2: ret_val = 2;break;//G
+		case 4: ret_val = 1;break;//B
+	}
+
+	return ret_val;
 }
 
 void
