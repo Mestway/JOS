@@ -66,9 +66,10 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 	if(pg == NULL)
 		send_pg = (void *)UTOP;
 
+	//cprintf("id:[%d] to env:[%d]\n", sys_getenvid(),to_env);
 	while((r = sys_ipc_try_send(to_env, val, send_pg, perm)) < 0 ) {
-		if(r < 0 && r != -E_IPC_NOT_RECV) panic("Oh, dear, you lose!");
-		sys_yield();
+		if(r != -E_IPC_NOT_RECV) panic("Oh, dear, you lose! %e",r);
+		sys_yield();	
 	}
 
 	//panic("ipc_send not implemented");

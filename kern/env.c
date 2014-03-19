@@ -83,6 +83,7 @@ envid2env(envid_t envid, struct Env **env_store, bool checkperm)
 		return 0;
 	}
 
+	
 	// Look up the Env structure via the index part of the envid,
 	// then check the env_id field in that struct Env
 	// to ensure that the envid is not stale
@@ -102,6 +103,7 @@ envid2env(envid_t envid, struct Env **env_store, bool checkperm)
 	if (checkperm && e != curenv && e->env_parent_id != curenv->env_id) {
 		*env_store = 0;
 		return -E_BAD_ENV;
+	
 	}
 
 	*env_store = e;
@@ -416,6 +418,11 @@ env_create(uint8_t *binary, size_t size, enum EnvType type)
 	env_alloc(&e, 0);
 	load_icode(e, binary, size);
 	e->env_type = ENV_TYPE_USER;	
+	
+	if(type == ENV_TYPE_FS) {
+		e->env_type = ENV_TYPE_FS;
+		e->env_tf.tf_eflags |= FL_IOPL_3;
+	}
 }
 
 //
