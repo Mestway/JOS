@@ -38,6 +38,11 @@ enum {
 	ENV_NOT_RUNNABLE
 };
 
+#define PRIORITY_S (0)
+#define PRIORITY_A (10)
+#define PRIORITY_B (100)
+#define PRIORITY_C (1000)
+
 // Special environment types
 enum EnvType {
 	ENV_TYPE_USER = 0,
@@ -52,6 +57,8 @@ struct Env {
 	unsigned env_status;		// Status of the environment
 	uint32_t env_runs;		// Number of times environment has run
 	int env_cpunum;			// The CPU that the env is running on
+
+	unsigned env_priority;	// Environment priority
 
 	// Address space
 	pde_t *env_pgdir;		// Kernel virtual address of page dir

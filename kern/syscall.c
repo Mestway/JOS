@@ -131,6 +131,15 @@ sys_env_set_status(envid_t envid, int status)
 	//panic("sys_env_set_status not implemented");
 }
 
+static int sys_env_set_priority(envid_t envid, int priority) {
+	struct Env *env;
+	int s = envid2env(envid, &env, 1);
+	if(s == -E_BAD_ENV) return s;
+
+	env->env_priority = priority;
+	return 0;
+}
+
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
 // Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
 // kernel will push a fault record onto the exception stack, then branch to
@@ -357,6 +366,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	if(dst_env->env_ipc_recving == 0 || dst_env->env_ipc_from != 0)
 		return -E_IPC_NOT_RECV;
 
+	struct PageInfo *pp;
 	if((unsigned)srcva < UTOP){
 		if(srcva !=  (void *)ROUNDDOWN(srcva, PGSIZE))
 			return -E_INVAL;
@@ -365,7 +375,6 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 		if(perm & ~(PTE_U | PTE_P | PTE_AVAIL | PTE_W))
 			return -E_INVAL;
 		
-		struct PageInfo *pp;
 		pte_t *pte;
 		pp = page_lookup(curenv->env_pgdir, srcva, &pte);
 		if(pp == NULL) return -E_INVAL;
@@ -379,8 +388,9 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	if((unsigned)srcva < UTOP && (dst_env->env_ipc_dstva != NULL)) {
 		dst_env->env_ipc_perm = perm;
 		int r;
-		if((r = sys_page_alloc(envid, dst_env->env_ipc_dstva, perm)) < 0) return r;
-		if((r = sys_page_map(curenv->env_id, srcva, envid, dst_env->env_ipc_dstva, perm)) < 0) return r;
+		//if((r = sys_page_alloc(envid, dst_env->env_ipc_dstva, perm)) < 0) return r;
+		//if((r = sys_page_map(curenv->env_id, srcva, envid, dst_env->env_ipc_dstva, perm)) < 0) return r;	
+		if((r = page_insert(dst_env->env_pgdir, pp, dst_env->env_ipc_dstva, perm)) < 0) return r;
 	}
 	dst_env->env_status = ENV_RUNNABLE;
 
@@ -442,6 +452,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		ret_val = sys_page_alloc(a1, (void *)a2, a3);
 	} else if(syscallno == SYS_env_set_status) {
 		ret_val = sys_env_set_status(a1,a2);
+	} else if(syscallno == SYS_env_set_priority) {
+		ret_val = sys_env_set_priority(a1, a2);
 	} else if(syscallno == SYS_exofork){
 		ret_val = sys_exofork();
 	} else if(syscallno == SYS_page_alloc){

@@ -12,7 +12,6 @@ void
 sched_yield(void)
 {
 	struct Env *idle;
-
 	// Implement simple round-robin scheduling.
 	//
 	// Search through 'envs' for an ENV_RUNNABLE environment in
@@ -36,23 +35,30 @@ sched_yield(void)
 		i = ENVX(curenv->env_id);
 	else i = -1;
 
+	struct Env *candidate = NULL;
 	bool findone = false;
 	for(; i <= NENV; i ++) {
 		if(envs[i].env_status == ENV_RUNNABLE) {
 			findone = true;
-			env_run(&envs[i]);
+			//env_run(&envs[i]);
+			if(candidate == NULL || candidate->env_priority > envs[i].env_priority)
+				candidate = &envs[i];
 		}
 	}
 
-	if(findone == false){
-		for(i = 0; i <= NENV; i ++) {
-			if(envs[i].env_status == ENV_RUNNABLE) {
-				findone = true;
-				env_run(&envs[i]);
-			}
+	for(i = 0; i <= NENV; i ++) {
+		if(envs[i].env_status == ENV_RUNNABLE) {
+			findone = true;
+			//env_run(&envs[i]);
+			if(candidate == NULL || candidate->env_priority > envs[i].env_priority)
+				candidate = &envs[i];
 		}
 	}
 
+	if(findone) {
+		//cprintf("CurPirority:%d\n", candidate->env_priority);
+		env_run(candidate);
+	}
 	if(curenv != NULL && curenv->env_status == ENV_RUNNING) {
 		env_run(curenv);
 	}
