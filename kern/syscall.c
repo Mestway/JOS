@@ -496,10 +496,11 @@ sys_exec(uintptr_t entry, uintptr_t init_esp, struct Proghdr *ph, unsigned int p
 		}
 		ph ++;
 	}
+
+	// We have already init stack in lib/exec.c, but we need to load it only now
 	if((pp = page_lookup(curenv->env_pgdir, UTEMP, NULL)) == NULL) {
 		panic("no page in exec");
 	}
-
 	if(page_insert(curenv->env_pgdir, pp, (void *)USTACKTOP-PGSIZE, PTE_P|PTE_U|PTE_W) < 0) {
 		panic("insert failed exec");
 	}
