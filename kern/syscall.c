@@ -4,6 +4,7 @@
 #include <inc/error.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/elf.h>
 
 #include <kern/env.h>
 #include <kern/pmap.h>
@@ -448,6 +449,67 @@ sys_ipc_recv(void *dstva)
 	return 0;
 }
 
+static int
+sys_exec(uintptr_t entry, uintptr_t init_esp, struct Proghdr *ph, unsigned int phnum) {
+	struct PageInfo *pp;
+	int i,perm;
+	void *uexect, *segbound;
+	uint32_t va;
+
+	if(curenv == NULL)
+		panic("exec before environment exist");
+
+	memset(&curenv->env_tf, 0, sizeof(curenv->env_tf));
+	curenv->env_tf.tf_eflags = GD_UD | 3;
+	curenv->env_tf.tf_ds = GD_UD | 3;
+	curenv->env_tf.tf_es = GD_UD | 3;
+	curenv->env_tf.tf_ss = GD_UD | 3;
+	curenv->env_tf.tf_esp = init_esp;
+	curenv->env_tf.tf_cs = GD_UT | 3;
+	curenv->env_tf.tf_eip = entry;
+	curenv->env_pgfault_upcall = NULL;
+	curenv->env_ipc_recving = 0;
+
+	/*
+	cprintf("My Debug:--\n");
+	cprintf("-- eip 0x%x",entry);
+	cprintf("-- esp 0x%x", init_esp);
+	*/
+
+	uexect = (void *)0x40000000;
+	for(i = 0; i < phnum; i ++) {
+		if(ph->p_type != ELF_PROG_LOAD)
+			continue;
+		perm = PTE_P | PTE_U;
+		if(ph->p_flags & ELF_PROG_FLAG_WRITE)
+			perm |= PTE_W;
+		segbound = uexect + ROUNDUP(PGOFF(ph->p_va) + ph->p_memsz, PGSIZE);
+		va = ROUNDDOWN(ph->p_va, PGSIZE);
+		for(; uexect < segbound; uexect += PGSIZE) {
+			pp = page_lookup(curenv->env_pgdir, uexect, NULL);
+			if(pp == NULL)
+				panic("No page in exec");
+			if(page_insert(curenv->env_pgdir, pp, (void *)va, perm) < 0)
+				panic("exec");
+			page_remove(curenv->env_pgdir, uexect);
+			va += PGSIZE;
+		}
+		ph ++;
+	}
+	if((pp = page_lookup(curenv->env_pgdir, UTEMP, NULL)) == NULL) {
+		panic("no page in exec");
+	}
+
+	if(page_insert(curenv->env_pgdir, pp, (void *)USTACKTOP-PGSIZE, PTE_P|PTE_U|PTE_W) < 0) {
+		panic("insert failed exec");
+	}
+	page_remove(curenv->env_pgdir, UTEMP);
+	env_run(curenv);
+	
+	return 0;
+}
+
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -488,6 +550,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		ret_val = sys_ipc_try_send(a1, a2, (void *)a3, a4);
 	} else if(syscallno == SYS_env_set_trapframe) {
 		ret_val = sys_env_set_trapframe(a1, (void *)a2);
+	} else if(syscallno == SYS_exec) {
+		ret_val = sys_exec(a1,a2,(struct Proghdr *)a3,a4);
 	}
 	else {
 		ret_val = -E_INVAL;
